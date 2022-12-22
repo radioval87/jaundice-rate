@@ -3,6 +3,7 @@ from enum import Enum
 
 import aiofiles
 import aiohttp
+import async_timeout
 import pymorphy2
 from anyio import create_task_group
 
@@ -15,7 +16,8 @@ TEST_ARTICLES = (
     'https://inosmi.ru/20221222/yandeks-259084346.html',
     'https://inosmi.ru/20221221/rasizm-259040011.html',
     'https://inosmi.ru/20221221/kanada-259046280.html',
-    'https://inosmi.ru/20221221/oligarkhi-259041447.ht'
+    'https://inosmi.ru/20221221/oligarkhi-259041447.ht',
+    'https://anyio.readthedocs.io/en/latest/tasks.html'
 )
 
 
@@ -51,6 +53,7 @@ class ProcessingStatus(Enum):
     OK = 'OK'
     FETCH_ERROR = 'FETCH_ERROR'
     PARSING_ERROR = 'PARSING_ERROR'
+    TIMEOUT = 'TIMEOUT'
 
 
 async def process_article(session, morph, charged_words, url, results):
@@ -59,10 +62,13 @@ async def process_article(session, morph, charged_words, url, results):
     words_count = None
 
     try:
-        html = await fetch(session, url)
+        async with async_timeout.timeout(2):
+            html = await fetch(session, url)
     except aiohttp.ClientResponseError:
         status = ProcessingStatus.FETCH_ERROR
-        
+    except asyncio.TimeoutError:
+        status = ProcessingStatus.TIMEOUT
+
     if status == ProcessingStatus.OK:
         try:
             clean_text = sanitize(html)
@@ -90,7 +96,8 @@ async def main():
         async with create_task_group() as tg:
             for url in TEST_ARTICLES:
                 tg.start_soon(
-                   process_article, session, morph, charged_words, url, results
+                    process_article,
+                    session, morph, charged_words, url, results
                 )
     for result in results:
         print('URL:', result['url'])
