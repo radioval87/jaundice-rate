@@ -1,4 +1,7 @@
 import asyncio
+import logging
+import time
+from contextlib import contextmanager
 from enum import Enum
 
 import aiofiles
@@ -11,13 +14,29 @@ from adapters.exceptions import ArticleNotFound
 from adapters.inosmi_ru import sanitize
 from text_tools import calculate_jaundice_rate, split_by_words
 
+
+import signal
+
+class timeout:
+    def __init__(self, seconds=1, error_message='Timeout'):
+        self.seconds = seconds
+        self.error_message = error_message
+    def handle_timeout(self, signum, frame):
+        raise TimeoutError(self.error_message)
+    def __enter__(self):
+        signal.signal(signal.SIGALRM, self.handle_timeout)
+        signal.alarm(self.seconds)
+    def __exit__(self, type, value, traceback):
+        signal.alarm(0)
+
+
 TEST_ARTICLES = (
     'https://inosmi.ru/20221222/zemlya-259086442.html',
-    'https://inosmi.ru/20221222/yandeks-259084346.html',
-    'https://inosmi.ru/20221221/rasizm-259040011.html',
-    'https://inosmi.ru/20221221/kanada-259046280.html',
-    'https://inosmi.ru/20221221/oligarkhi-259041447.ht',
-    'https://anyio.readthedocs.io/en/latest/tasks.html'
+    # 'https://inosmi.ru/20221222/yandeks-259084346.html',
+    # 'https://inosmi.ru/20221221/rasizm-259040011.html',
+    # 'https://inosmi.ru/20221221/kanada-259046280.html',
+    # 'https://inosmi.ru/20221221/oligarkhi-259041447.ht',
+    # 'https://anyio.readthedocs.io/en/latest/tasks.html'
 )
 
 
@@ -56,29 +75,46 @@ class ProcessingStatus(Enum):
     TIMEOUT = 'TIMEOUT'
 
 
+@contextmanager
+def timeit():
+    start = time.monotonic()
+    try:
+        yield
+    finally:
+        logging.info(f'Анализ закончен за {time.monotonic() - start} сек')
+
+
 async def process_article(session, morph, charged_words, url, results):
     status = ProcessingStatus.OK
     rate = None
     words_count = None
 
-    try:
-        async with async_timeout.timeout(2):
-            html = await fetch(session, url)
-    except aiohttp.ClientResponseError:
-        status = ProcessingStatus.FETCH_ERROR
-    except asyncio.TimeoutError:
-        status = ProcessingStatus.TIMEOUT
+    # try:
+    #     async with async_timeout.timeout(2):
+    #         html = await fetch(session, url)
+    # except aiohttp.ClientResponseError:
+    #     status = ProcessingStatus.FETCH_ERROR
+    # except asyncio.TimeoutError:
+    #     status = ProcessingStatus.TIMEOUT
+
+    # if status == ProcessingStatus.OK:
+    #     try:
+    #         clean_text = sanitize(html)
+    #     except ArticleNotFound:
+    #         status = ProcessingStatus.PARSING_ERROR
+    with open('./big_text.txt', 'r') as f:
+        clean_text = f.read()
 
     if status == ProcessingStatus.OK:
         try:
-            clean_text = sanitize(html)
-        except ArticleNotFound:
-            status = ProcessingStatus.PARSING_ERROR
-
-    if status == ProcessingStatus.OK:
-        morphed_text = split_by_words(morph, clean_text)
-        rate = calculate_jaundice_rate(morphed_text, charged_words)
-        words_count = len(morphed_text)
+            # async with async_timeout.timeout(1):
+            with timeout(seconds=1):
+                with timeit(): 
+                    morphed_text = split_by_words(morph, clean_text)
+                rate = calculate_jaundice_rate(morphed_text, charged_words)
+                words_count = len(morphed_text)
+        except TimeoutError:
+            status = ProcessingStatus.TIMEOUT
 
     results.append({
         'url': url,
@@ -89,6 +125,14 @@ async def process_article(session, morph, charged_words, url, results):
 
 
 async def main():
+    logging.basicConfig(
+        format=(
+            '%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s] '
+            '%(message)s'
+        ),
+        level=logging.DEBUG
+    )
+
     morph = pymorphy2.MorphAnalyzer()
     charged_words = await get_charged_words()
     results = []
