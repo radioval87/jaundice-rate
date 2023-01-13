@@ -9,14 +9,17 @@ import aiofiles
 import aiohttp
 import async_timeout
 import pymorphy2
+import pytest
 from anyio import create_task_group
 
 from adapters.exceptions import ArticleNotFound
 from adapters.inosmi_ru import sanitize
 from text_tools import calculate_jaundice_rate, split_by_words
 
+morph = pymorphy2.MorphAnalyzer()
 
-class timeout:
+
+class sync_timeout:
     def __init__(self, seconds=1, error_message='Timeout'):
         self.seconds = seconds
         self.error_message = error_message
@@ -83,32 +86,34 @@ def timeit():
         logging.info(f'Анализ закончен за {time.monotonic() - start} сек')
 
 
-async def process_article(session, morph, charged_words, url, results):
+async def process_article(session, morph, charged_words, url, results,
+    fetch_timeout=2, big_text_test=False):
+
     status = ProcessingStatus.OK
     rate = None
     words_count = None
 
-    try:
-        async with async_timeout.timeout(2):
-            html = await fetch(session, url)
-    except aiohttp.ClientResponseError:
-        status = ProcessingStatus.FETCH_ERROR
-    except asyncio.TimeoutError:
-        status = ProcessingStatus.TIMEOUT
+    if big_text_test:
+        with open('./big_text.txt', 'r') as f:
+            clean_text = f.read()
+    else:
+        try:
+            async with async_timeout.timeout(fetch_timeout):
+                html = await fetch(session, url)
+        except aiohttp.ClientResponseError:
+            status = ProcessingStatus.FETCH_ERROR
+        except asyncio.TimeoutError:
+            status = ProcessingStatus.TIMEOUT
+
+        if status == ProcessingStatus.OK:
+            try:
+                clean_text = sanitize(html)
+            except ArticleNotFound:
+                status = ProcessingStatus.PARSING_ERROR
 
     if status == ProcessingStatus.OK:
         try:
-            clean_text = sanitize(html)
-        except ArticleNotFound:
-            status = ProcessingStatus.PARSING_ERROR
-
-    # Left for possible future debug
-    # with open('./big_text.txt', 'r') as f:
-    #     clean_text = f.read()
-
-    if status == ProcessingStatus.OK:
-        try:
-            with timeout(seconds=3):
+            with sync_timeout(seconds=3):
                 with timeit(): 
                     morphed_text = split_by_words(morph, clean_text)
                 rate = calculate_jaundice_rate(morphed_text, charged_words)
@@ -133,7 +138,6 @@ async def main(urls=TEST_ARTICLES):
         level=logging.DEBUG
     )
 
-    morph = pymorphy2.MorphAnalyzer()
     charged_words = await get_charged_words()
     results = []
     async with aiohttp.ClientSession() as session:
@@ -144,6 +148,71 @@ async def main(urls=TEST_ARTICLES):
                     session, morph, charged_words, url, results
                 )
     return results
+    
+
+@pytest.mark.asyncio
+async def test_process_article():
+    charged_words = ('аутсайдер', 'побег')
+    correct_url = 'https://inosmi.ru/20221221/oligarkhi-259041447.html'
+    incorrect_url = 'https://inosmi.ru/20221221/oligarkhi-259041447.ht'
+    incompatible_url = 'https://anyio.readthedocs.io/en/latest/tasks.html'
+
+    results = []
+    async with aiohttp.ClientSession() as session:
+        await process_article(
+            session,
+            morph,
+            charged_words,
+            correct_url,
+            results
+        )
+    assert results[0]['status'] == 'OK'
+
+    results = []
+    async with aiohttp.ClientSession() as session:
+        await process_article(
+            session,
+            morph,
+            charged_words,
+            incorrect_url,
+            results
+        )
+    assert results[0]['status'] == 'FETCH_ERROR'
+
+    results = []
+    async with aiohttp.ClientSession() as session:
+        await process_article(
+            session,
+            morph,
+            charged_words,
+            correct_url,
+            results,
+            fetch_timeout=0.01
+        )
+    assert results[0]['status'] == 'TIMEOUT'
+
+    results = []
+    async with aiohttp.ClientSession() as session:
+        await process_article(
+            session,
+            morph,
+            charged_words,
+            correct_url,
+            results,
+            big_text_test=True
+        )
+    assert results[0]['status'] == 'TIMEOUT'
+
+    results = []
+    async with aiohttp.ClientSession() as session:
+        await process_article(
+            session,
+            morph,
+            charged_words,
+            incompatible_url,
+            results
+        )
+    assert results[0]['status'] == 'PARSING_ERROR'
 
 
 asyncio.run(main())
