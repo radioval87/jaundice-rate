@@ -10,6 +10,12 @@ async def get_articles_stats(request: Request):
         for url in request.rel_url.query['urls'].split(','):
             urls.append(url.strip())
     
+    if len(urls) > 10:
+        return web.json_response(data={
+            "error": "too many urls in request, should be 10 or less"
+            }, status=400
+        )
+
     results = await process_articles(urls)
     response = {
         'results': results
