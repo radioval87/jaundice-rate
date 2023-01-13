@@ -1,30 +1,25 @@
 from aiohttp import web
 from aiohttp.web_request import Request
 
-'''
-http://127.0.0.1?urls=https://ya.ru,https://google.com
+from main import main as process_articles
 
-{
-  "urls": [
-    "https://ya.ru",
-    "https://google.com"
-  ]
-}
-'''
 
-async def handle(request: Request):
+async def get_articles_stats(request: Request):
     urls = []
     if request.rel_url.query['urls']:
         for url in request.rel_url.query['urls'].split(','):
             urls.append(url.strip())
+    
+    results = await process_articles(urls)
     response = {
-        "urls": urls
+        'results': results
     }
     return web.json_response(response)
 
 app = web.Application()
 app.add_routes(
-    [web.get('', handle),
+    [
+        web.get('', get_articles_stats),
     ]
 )
 
