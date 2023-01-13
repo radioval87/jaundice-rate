@@ -32,11 +32,11 @@ class timeout:
 
 TEST_ARTICLES = (
     'https://inosmi.ru/20221222/zemlya-259086442.html',
-    # 'https://inosmi.ru/20221222/yandeks-259084346.html',
-    # 'https://inosmi.ru/20221221/rasizm-259040011.html',
-    # 'https://inosmi.ru/20221221/kanada-259046280.html',
-    # 'https://inosmi.ru/20221221/oligarkhi-259041447.ht',
-    # 'https://anyio.readthedocs.io/en/latest/tasks.html'
+    'https://inosmi.ru/20221222/yandeks-259084346.html',
+    'https://inosmi.ru/20221221/rasizm-259040011.html',
+    'https://inosmi.ru/20221221/kanada-259046280.html',
+    'https://inosmi.ru/20221221/oligarkhi-259041447.ht',
+    'https://anyio.readthedocs.io/en/latest/tasks.html'
 )
 
 
@@ -89,26 +89,27 @@ async def process_article(session, morph, charged_words, url, results):
     rate = None
     words_count = None
 
-    # try:
-    #     async with async_timeout.timeout(2):
-    #         html = await fetch(session, url)
-    # except aiohttp.ClientResponseError:
-    #     status = ProcessingStatus.FETCH_ERROR
-    # except asyncio.TimeoutError:
-    #     status = ProcessingStatus.TIMEOUT
-
-    # if status == ProcessingStatus.OK:
-    #     try:
-    #         clean_text = sanitize(html)
-    #     except ArticleNotFound:
-    #         status = ProcessingStatus.PARSING_ERROR
-    with open('./big_text.txt', 'r') as f:
-        clean_text = f.read()
+    try:
+        async with async_timeout.timeout(2):
+            html = await fetch(session, url)
+    except aiohttp.ClientResponseError:
+        status = ProcessingStatus.FETCH_ERROR
+    except asyncio.TimeoutError:
+        status = ProcessingStatus.TIMEOUT
 
     if status == ProcessingStatus.OK:
         try:
-            # async with async_timeout.timeout(1):
-            with timeout(seconds=1):
+            clean_text = sanitize(html)
+        except ArticleNotFound:
+            status = ProcessingStatus.PARSING_ERROR
+
+    # Left for possible future debug
+    # with open('./big_text.txt', 'r') as f:
+    #     clean_text = f.read()
+
+    if status == ProcessingStatus.OK:
+        try:
+            with timeout(seconds=3):
                 with timeit(): 
                     morphed_text = split_by_words(morph, clean_text)
                 rate = calculate_jaundice_rate(morphed_text, charged_words)
