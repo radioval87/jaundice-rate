@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import signal
 import time
 from contextlib import contextmanager
 from enum import Enum
@@ -14,8 +15,6 @@ from adapters.exceptions import ArticleNotFound
 from adapters.inosmi_ru import sanitize
 from text_tools import calculate_jaundice_rate, split_by_words
 
-
-import signal
 
 class timeout:
     def __init__(self, seconds=1, error_message='Timeout'):
@@ -68,7 +67,7 @@ async def fetch(session, url):
         return await response.text()
 
 
-class ProcessingStatus(Enum):
+class ProcessingStatus(str, Enum):
     OK = 'OK'
     FETCH_ERROR = 'FETCH_ERROR'
     PARSING_ERROR = 'PARSING_ERROR'
@@ -118,14 +117,14 @@ async def process_article(session, morph, charged_words, url, results):
             status = ProcessingStatus.TIMEOUT
 
     results.append({
-        'url': url,
         'status': status,
-        'rate': rate,
+        'url': url,
+        'score': rate,
         'words_count': words_count
     })
 
 
-async def main():
+async def main(urls=TEST_ARTICLES):
     logging.basicConfig(
         format=(
             '%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s] '
@@ -139,17 +138,12 @@ async def main():
     results = []
     async with aiohttp.ClientSession() as session:
         async with create_task_group() as tg:
-            for url in TEST_ARTICLES:
+            for url in urls:
                 tg.start_soon(
                     process_article,
                     session, morph, charged_words, url, results
                 )
-    for result in results:
-        print('URL:', result['url'])
-        print('Статус:', result['status'])
-        print('Рейтинг:', result['rate'])
-        print('Слов в статье:', result['words_count'])
-        print('')
+    return results
 
 
 asyncio.run(main())
