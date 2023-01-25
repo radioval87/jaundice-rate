@@ -115,7 +115,7 @@ async def process_article(session, morph, charged_words, url, results,
         try:
             with sync_timeout(seconds=3):
                 with timeit(): 
-                    morphed_text = split_by_words(morph, clean_text)
+                    morphed_text = await split_by_words(morph, clean_text)
                 rate = calculate_jaundice_rate(morphed_text, charged_words)
                 words_count = len(morphed_text)
         except TimeoutError:

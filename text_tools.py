@@ -9,7 +9,7 @@ def _clean_word(word):
     return word
 
 
-def split_by_words(morph, text):
+async def split_by_words(morph, text):
     """Учитывает знаки пунктуации, регистр и словоформы, выкидывает предлоги."""
     words = []
     for word in text.split():
