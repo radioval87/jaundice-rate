@@ -23,12 +23,16 @@ async def get_articles_stats(request: Request):
     }
     return web.json_response(response)
 
-app = web.Application()
-app.add_routes(
-    [
-        web.get('', get_articles_stats),
-    ]
-)
+
+def main():
+    app = web.Application()
+    app.add_routes(
+        [
+            web.get('', get_articles_stats),
+        ]
+    )
+    web.run_app(app, host='127.0.0.1', port=8081)
+
 
 if __name__ == '__main__':
-    web.run_app(app, host='127.0.0.1', port=8081)
+    main()
