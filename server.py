@@ -1,12 +1,12 @@
 from aiohttp import web
 from aiohttp.web_request import Request
 
-from main import main as process_articles
+from articles_processor import process_articles
 
 
 async def get_articles_stats(request: Request):
     urls = []
-    if request.rel_url.query['urls']:
+    if 'urls' in request.rel_url.query and request.rel_url.query['urls']:
         urls = request.rel_url.query['urls'].split(',')
         if len(urls) > 10:
             return web.json_response(
@@ -23,12 +23,16 @@ async def get_articles_stats(request: Request):
     }
     return web.json_response(response)
 
-app = web.Application()
-app.add_routes(
-    [
-        web.get('', get_articles_stats),
-    ]
-)
+
+def main():
+    app = web.Application()
+    app.add_routes(
+        [
+            web.get('', get_articles_stats),
+        ]
+    )
+    web.run_app(app, host='127.0.0.1', port=8081)
+
 
 if __name__ == '__main__':
-    web.run_app(app, host='127.0.0.1', port=8081)
+    main()
