@@ -42,25 +42,17 @@ TEST_ARTICLES = (
 )
 
 
+async def read_words_from_file(path, charged_words):
+    async with aiofiles.open(path, mode='r') as f:
+        words = await f.read()
+        for word in words.split('\n'):
+            charged_words.append(word)
+
+
 async def get_charged_words():
     charged_words = []
-
-    async def read_words_from_file(path):
-        nonlocal charged_words
-        async with aiofiles.open(path, mode='r') as f:
-            msgs = await f.read()
-            for msg in msgs.split('\n'):
-                charged_words.append(msg)
-
-    async def get_negative_words():
-        await read_words_from_file('./negative_words.txt')
-
-    async def get_positive_words():
-        await read_words_from_file('./positive_words.txt')
-    
-    async with create_task_group() as tg:
-        tg.start_soon(get_negative_words)
-        tg.start_soon(get_positive_words)
+    await read_words_from_file('./negative_words.txt', charged_words)
+    await read_words_from_file('./positive_words.txt', charged_words)
     return charged_words
 
 
