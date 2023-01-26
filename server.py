@@ -1,7 +1,7 @@
 from aiohttp import web
 from aiohttp.web_request import Request
 
-from main import main as process_articles
+from main import process_articles
 
 
 async def get_articles_stats(request: Request):

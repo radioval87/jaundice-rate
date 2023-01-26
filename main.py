@@ -17,6 +17,7 @@ from adapters.inosmi_ru import sanitize
 from text_tools import calculate_jaundice_rate, split_by_words
 
 morph = pymorphy2.MorphAnalyzer()
+charged_words = []
 
 
 class sync_timeout:
@@ -45,7 +46,7 @@ TEST_ARTICLES = (
 )
 
 
-async def read_words_from_file(path, charged_words):
+async def read_words_from_file(path):
     async with aiofiles.open(path, mode='r') as f:
         words = await f.read()
         for word in words.split('\n'):
@@ -53,10 +54,8 @@ async def read_words_from_file(path, charged_words):
 
 
 async def get_charged_words():
-    charged_words = []
-    await read_words_from_file('./negative_words.txt', charged_words)
-    await read_words_from_file('./positive_words.txt', charged_words)
-    return charged_words
+    await read_words_from_file('./negative_words.txt')
+    await read_words_from_file('./positive_words.txt')
 
 
 async def fetch(session, url):
@@ -132,16 +131,7 @@ async def process_article(session, morph, charged_words, url, results,
     })
 
 
-async def main(urls=TEST_ARTICLES):
-    logging.basicConfig(
-        format=(
-            '%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s] '
-            '%(message)s'
-        ),
-        level=logging.DEBUG
-    )
-
-    charged_words = await get_charged_words()
+async def process_articles(urls):
     results = []
     async with aiohttp.ClientSession() as session:
         async with create_task_group() as tg:
@@ -155,6 +145,18 @@ async def main(urls=TEST_ARTICLES):
                     results
                 )
     return results
+
+
+async def main(urls=TEST_ARTICLES):
+    logging.basicConfig(
+        format=(
+            '%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s] '
+            '%(message)s'
+        ),
+        level=logging.DEBUG
+    )
+    await get_charged_words()
+    await process_articles(urls)
 
 
 @pytest.mark.asyncio
