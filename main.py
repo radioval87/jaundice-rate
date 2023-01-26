@@ -23,11 +23,14 @@ class sync_timeout:
     def __init__(self, seconds=1, error_message='Timeout'):
         self.seconds = seconds
         self.error_message = error_message
+
     def handle_timeout(self, signum, frame):
         raise TimeoutError(self.error_message)
+
     def __enter__(self):
         signal.signal(signal.SIGALRM, self.handle_timeout)
         signal.alarm(self.seconds)
+
     def __exit__(self, type, value, traceback):
         signal.alarm(0)
 
@@ -79,7 +82,7 @@ def timeit():
 
 
 async def process_article(session, morph, charged_words, url, results,
-    fetch_timeout=2, big_text_test=False):
+                          fetch_timeout=2, big_text_test=False):
 
     status = ProcessingStatus.OK
     rate = None
@@ -106,7 +109,7 @@ async def process_article(session, morph, charged_words, url, results,
     if status == ProcessingStatus.OK:
         try:
             with sync_timeout(seconds=3):
-                with timeit(): 
+                with timeit():
                     morphed_text = await split_by_words(morph, clean_text)
                 rate = calculate_jaundice_rate(morphed_text, charged_words)
                 words_count = len(morphed_text)
@@ -140,7 +143,7 @@ async def main(urls=TEST_ARTICLES):
                     session, morph, charged_words, url, results
                 )
     return results
-    
+
 
 @pytest.mark.asyncio
 async def test_process_article():
