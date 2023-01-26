@@ -140,7 +140,11 @@ async def main(urls=TEST_ARTICLES):
             for url in urls:
                 tg.start_soon(
                     process_article,
-                    session, morph, charged_words, url, results
+                    session,
+                    morph,
+                    charged_words,
+                    url,
+                    results
                 )
     return results
 
@@ -155,33 +159,33 @@ async def test_process_article():
     results = []
     async with aiohttp.ClientSession() as session:
         await process_article(
-            session,
-            morph,
-            charged_words,
-            correct_url,
-            results
+            session=session,
+            morph=morph,
+            charged_words=charged_words,
+            url=correct_url,
+            results=results
         )
     assert results[0]['status'] == 'OK'
 
     results = []
     async with aiohttp.ClientSession() as session:
         await process_article(
-            session,
-            morph,
-            charged_words,
-            incorrect_url,
-            results
+            session=session,
+            morph=morph,
+            charged_words=charged_words,
+            url=incorrect_url,
+            results=results
         )
     assert results[0]['status'] == 'FETCH_ERROR'
 
     results = []
     async with aiohttp.ClientSession() as session:
         await process_article(
-            session,
-            morph,
-            charged_words,
-            correct_url,
-            results,
+            session=session,
+            morph=morph,
+            charged_words=charged_words,
+            url=correct_url,
+            results=results,
             fetch_timeout=0.01
         )
     assert results[0]['status'] == 'TIMEOUT'
@@ -189,11 +193,11 @@ async def test_process_article():
     results = []
     async with aiohttp.ClientSession() as session:
         await process_article(
-            session,
-            morph,
-            charged_words,
-            correct_url,
-            results,
+            session=session,
+            morph=morph,
+            charged_words=charged_words,
+            url=correct_url,
+            results=results,
             big_text_test=True
         )
     assert results[0]['status'] == 'TIMEOUT'
@@ -201,11 +205,11 @@ async def test_process_article():
     results = []
     async with aiohttp.ClientSession() as session:
         await process_article(
-            session,
-            morph,
-            charged_words,
-            incompatible_url,
-            results
+            session=session,
+            morph=morph,
+            charged_words=charged_words,
+            url=incompatible_url,
+            results=results
         )
     assert results[0]['status'] == 'PARSING_ERROR'
 
