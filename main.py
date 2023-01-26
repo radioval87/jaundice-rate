@@ -81,36 +81,44 @@ def timeit():
         logging.info(f'Анализ закончен за {time.monotonic() - start} сек')
 
 
+async def get_article_text(session, url, fetch_timeout, status):
+    clean_text = None
+    try:
+        async with async_timeout.timeout(fetch_timeout):
+            html = await fetch(session, url)
+    except aiohttp.ClientResponseError:
+        status = ProcessingStatus.FETCH_ERROR
+    except asyncio.TimeoutError:
+        status = ProcessingStatus.TIMEOUT
+
+    if status == ProcessingStatus.OK:
+        try:
+            clean_text = sanitize(html)
+        except ArticleNotFound:
+            status = ProcessingStatus.PARSING_ERROR
+    return clean_text, status
+
+
 async def process_article(session, morph, charged_words, url, results,
-                          fetch_timeout=2, big_text_test=False):
+                          fetch_timeout=2, article_text=None):
 
     status = ProcessingStatus.OK
     rate = None
     words_count = None
 
-    if big_text_test:
-        with open('./big_text.txt', 'r') as f:
-            clean_text = f.read()
-    else:
-        try:
-            async with async_timeout.timeout(fetch_timeout):
-                html = await fetch(session, url)
-        except aiohttp.ClientResponseError:
-            status = ProcessingStatus.FETCH_ERROR
-        except asyncio.TimeoutError:
-            status = ProcessingStatus.TIMEOUT
-
-        if status == ProcessingStatus.OK:
-            try:
-                clean_text = sanitize(html)
-            except ArticleNotFound:
-                status = ProcessingStatus.PARSING_ERROR
+    if not article_text:
+        article_text, status = await get_article_text(
+            session=session,
+            url=url,
+            fetch_timeout=fetch_timeout,
+            status=status
+        )
 
     if status == ProcessingStatus.OK:
         try:
             with sync_timeout(seconds=3):
                 with timeit():
-                    morphed_text = await split_by_words(morph, clean_text)
+                    morphed_text = await split_by_words(morph, article_text)
                 rate = calculate_jaundice_rate(morphed_text, charged_words)
                 words_count = len(morphed_text)
         except TimeoutError:
@@ -155,6 +163,8 @@ async def test_process_article():
     correct_url = 'https://inosmi.ru/20221221/oligarkhi-259041447.html'
     incorrect_url = 'https://inosmi.ru/20221221/oligarkhi-259041447.ht'
     incompatible_url = 'https://anyio.readthedocs.io/en/latest/tasks.html'
+    with open('./big_text.txt', 'r') as f:
+        big_text = f.read()
 
     results = []
     async with aiohttp.ClientSession() as session:
@@ -198,7 +208,7 @@ async def test_process_article():
             charged_words=charged_words,
             url=correct_url,
             results=results,
-            big_text_test=True
+            article_text=big_text
         )
     assert results[0]['status'] == 'TIMEOUT'
 
