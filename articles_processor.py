@@ -4,7 +4,6 @@ import time
 from contextlib import contextmanager
 from enum import Enum
 
-import aiofiles
 import aiohttp
 import async_timeout
 import pymorphy2
@@ -16,23 +15,20 @@ from adapters.inosmi_ru import sanitize
 from text_tools import calculate_jaundice_rate, split_by_words
 
 
-async def read_words_from_file(path):
-    words = []
-    async with aiofiles.open(path, mode='r') as f:
-        file_text = await f.read()
-        for word in file_text.split('\n'):
-            words.append(word)
-    return words
+def read_words_from_file(path):
+    with open(path, mode='r') as f:
+        file_text = f.read()
+    return file_text.split('\n')
 
 
-async def get_charged_words():
+def get_charged_words():
     charged_words = []
     paths_to_charged_words = (
         './negative_words.txt',
         './positive_words.txt',
     )
     for path in paths_to_charged_words:
-        words = await read_words_from_file(path)
+        words = read_words_from_file(path)
         charged_words.extend(words)
 
     return charged_words
@@ -111,9 +107,8 @@ async def process_article(session, morph, charged_words, url, results,
     })
 
 
-async def process_articles(urls, morph):
+async def process_articles(urls, morph, charged_words):
     results = []
-    charged_words = await get_charged_words()
     async with aiohttp.ClientSession() as session:
         async with create_task_group() as tg:
             for url in urls:
@@ -128,7 +123,7 @@ async def process_articles(urls, morph):
     return results
 
 
-async def main(morph, urls):
+async def main(morph, urls, charged_words):
     logging.basicConfig(
         format=(
             '%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s] '
@@ -136,7 +131,7 @@ async def main(morph, urls):
         ),
         level=logging.DEBUG
     )
-    await process_articles(urls, morph)
+    await process_articles(urls, morph, charged_words)
 
 
 @pytest.mark.asyncio
@@ -217,4 +212,5 @@ if __name__ == '__main__':
         'https://anyio.readthedocs.io/en/latest/tasks.html'
     )
     morph = pymorphy2.MorphAnalyzer()
-    asyncio.run(main(morph, TEST_ARTICLES))
+    charged_words = get_charged_words()
+    asyncio.run(main(morph, TEST_ARTICLES, charged_words))
