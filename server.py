@@ -6,8 +6,9 @@ from articles_processor import process_articles
 
 async def get_articles_stats(request: Request):
     urls = []
-    if 'urls' in request.rel_url.query and request.rel_url.query['urls']:
-        urls = request.rel_url.query['urls'].replace(' ', '').split(',')
+    query_parameters = request.rel_url.query
+    if 'urls' in query_parameters and query_parameters['urls']:
+        urls = query_parameters['urls'].replace(' ', '').split(',')
         if len(urls) > 10:
             return web.json_response(
                 data={
