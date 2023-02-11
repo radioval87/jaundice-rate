@@ -1,11 +1,9 @@
 import asyncio
 import logging
-import signal
 import time
 from contextlib import contextmanager
 from enum import Enum
 
-import aiofiles
 import aiohttp
 import async_timeout
 import pymorphy2
@@ -16,46 +14,24 @@ from adapters.exceptions import ArticleNotFound
 from adapters.inosmi_ru import sanitize
 from text_tools import calculate_jaundice_rate, split_by_words
 
-morph = pymorphy2.MorphAnalyzer()
-charged_words = []
+
+def read_words_from_file(path):
+    with open(path, mode='r') as f:
+        file_text = f.read()
+    return file_text.split('\n')
 
 
-class sync_timeout:
-    def __init__(self, seconds=1, error_message='Timeout'):
-        self.seconds = seconds
-        self.error_message = error_message
+def get_charged_words():
+    charged_words = []
+    paths_to_charged_words = (
+        './negative_words.txt',
+        './positive_words.txt',
+    )
+    for path in paths_to_charged_words:
+        words = read_words_from_file(path)
+        charged_words.extend(words)
 
-    def handle_timeout(self, signum, frame):
-        raise TimeoutError(self.error_message)
-
-    def __enter__(self):
-        signal.signal(signal.SIGALRM, self.handle_timeout)
-        signal.alarm(self.seconds)
-
-    def __exit__(self, type, value, traceback):
-        signal.alarm(0)
-
-
-TEST_ARTICLES = (
-    'https://inosmi.ru/20221222/zemlya-259086442.html',
-    'https://inosmi.ru/20221222/yandeks-259084346.html',
-    'https://inosmi.ru/20221221/rasizm-259040011.html',
-    'https://inosmi.ru/20221221/kanada-259046280.html',
-    'https://inosmi.ru/20221221/oligarkhi-259041447.ht',
-    'https://anyio.readthedocs.io/en/latest/tasks.html'
-)
-
-
-async def read_words_from_file(path):
-    async with aiofiles.open(path, mode='r') as f:
-        words = await f.read()
-        for word in words.split('\n'):
-            charged_words.append(word)
-
-
-async def get_charged_words():
-    await read_words_from_file('./negative_words.txt')
-    await read_words_from_file('./positive_words.txt')
+    return charged_words
 
 
 async def fetch(session, url):
@@ -115,12 +91,12 @@ async def process_article(session, morph, charged_words, url, results,
 
     if status == ProcessingStatus.OK:
         try:
-            with sync_timeout(seconds=3):
+            async with async_timeout.timeout(3):
                 with timeit():
                     morphed_text = await split_by_words(morph, article_text)
                 rate = calculate_jaundice_rate(morphed_text, charged_words)
                 words_count = len(morphed_text)
-        except TimeoutError:
+        except asyncio.TimeoutError:
             status = ProcessingStatus.TIMEOUT
 
     results.append({
@@ -131,7 +107,7 @@ async def process_article(session, morph, charged_words, url, results,
     })
 
 
-async def process_articles(urls):
+async def process_articles(urls, morph, charged_words):
     results = []
     async with aiohttp.ClientSession() as session:
         async with create_task_group() as tg:
@@ -147,7 +123,7 @@ async def process_articles(urls):
     return results
 
 
-async def main(urls=TEST_ARTICLES):
+async def main(morph, urls, charged_words):
     logging.basicConfig(
         format=(
             '%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s] '
@@ -155,12 +131,12 @@ async def main(urls=TEST_ARTICLES):
         ),
         level=logging.DEBUG
     )
-    await get_charged_words()
-    await process_articles(urls)
+    await process_articles(urls, morph, charged_words)
 
 
 @pytest.mark.asyncio
 async def test_process_article():
+    morph = pymorphy2.MorphAnalyzer()
     charged_words = ('аутсайдер', 'побег')
     correct_url = 'https://inosmi.ru/20221221/oligarkhi-259041447.html'
     incorrect_url = 'https://inosmi.ru/20221221/oligarkhi-259041447.ht'
@@ -226,4 +202,15 @@ async def test_process_article():
     assert results[0]['status'] == 'PARSING_ERROR'
 
 
-asyncio.run(main())
+if __name__ == '__main__':
+    TEST_ARTICLES = (
+        'https://inosmi.ru/20221222/zemlya-259086442.html',
+        'https://inosmi.ru/20221222/yandeks-259084346.html',
+        'https://inosmi.ru/20221221/rasizm-259040011.html',
+        'https://inosmi.ru/20221221/kanada-259046280.html',
+        'https://inosmi.ru/20221221/oligarkhi-259041447.ht',
+        'https://anyio.readthedocs.io/en/latest/tasks.html'
+    )
+    morph = pymorphy2.MorphAnalyzer()
+    charged_words = get_charged_words()
+    asyncio.run(main(morph, TEST_ARTICLES, charged_words))
