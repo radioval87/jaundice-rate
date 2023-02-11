@@ -1,6 +1,5 @@
 import asyncio
 import logging
-import signal
 import time
 from contextlib import contextmanager
 from enum import Enum
@@ -16,7 +15,6 @@ from adapters.exceptions import ArticleNotFound
 from adapters.inosmi_ru import sanitize
 from text_tools import calculate_jaundice_rate, split_by_words
 
-morph = pymorphy2.MorphAnalyzer()
 charged_words = []
 
 TEST_ARTICLES = (
@@ -114,7 +112,7 @@ async def process_article(session, morph, charged_words, url, results,
     })
 
 
-async def process_articles(urls):
+async def process_articles(urls, morph):
     results = []
     async with aiohttp.ClientSession() as session:
         async with create_task_group() as tg:
@@ -130,7 +128,7 @@ async def process_articles(urls):
     return results
 
 
-async def main(urls=TEST_ARTICLES):
+async def main(morph, urls=TEST_ARTICLES):
     logging.basicConfig(
         format=(
             '%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s] '
@@ -139,11 +137,12 @@ async def main(urls=TEST_ARTICLES):
         level=logging.DEBUG
     )
     await get_charged_words()
-    await process_articles(urls)
+    await process_articles(urls, morph)
 
 
 @pytest.mark.asyncio
 async def test_process_article():
+    morph = pymorphy2.MorphAnalyzer()
     charged_words = ('аутсайдер', 'побег')
     correct_url = 'https://inosmi.ru/20221221/oligarkhi-259041447.html'
     incorrect_url = 'https://inosmi.ru/20221221/oligarkhi-259041447.ht'
@@ -209,4 +208,6 @@ async def test_process_article():
     assert results[0]['status'] == 'PARSING_ERROR'
 
 
-asyncio.run(main())
+if __name__ == '__main__':
+    morph = pymorphy2.MorphAnalyzer()
+    asyncio.run(main(morph))
