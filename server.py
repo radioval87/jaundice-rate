@@ -26,7 +26,9 @@ async def get_articles_stats(request: Request, morph, charged_words):
     return web.json_response(response)
 
 
-def main(morph, charged_words):
+def main():
+    morph = pymorphy2.MorphAnalyzer()
+    charged_words = get_charged_words()
     app = web.Application()
     app.add_routes(
         [
@@ -42,6 +44,4 @@ def main(morph, charged_words):
 
 
 if __name__ == '__main__':
-    morph = pymorphy2.MorphAnalyzer()
-    charged_words = get_charged_words()
-    main(morph, charged_words)
+    main()
