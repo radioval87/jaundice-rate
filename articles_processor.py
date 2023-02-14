@@ -123,7 +123,7 @@ async def process_articles(urls, morph, charged_words):
     return results
 
 
-async def main(morph, urls, charged_words):
+async def main():
     logging.basicConfig(
         format=(
             '%(filename)s[LINE:%(lineno)d]# %(levelname)-8s [%(asctime)s] '
@@ -131,7 +131,17 @@ async def main(morph, urls, charged_words):
         ),
         level=logging.DEBUG
     )
-    await process_articles(urls, morph, charged_words)
+    TEST_ARTICLES = (
+        'https://inosmi.ru/20221222/zemlya-259086442.html',
+        'https://inosmi.ru/20221222/yandeks-259084346.html',
+        'https://inosmi.ru/20221221/rasizm-259040011.html',
+        'https://inosmi.ru/20221221/kanada-259046280.html',
+        'https://inosmi.ru/20221221/oligarkhi-259041447.ht',
+        'https://anyio.readthedocs.io/en/latest/tasks.html'
+    )
+    morph = pymorphy2.MorphAnalyzer()
+    charged_words = get_charged_words()
+    await process_articles(TEST_ARTICLES, morph, charged_words)
 
 
 @pytest.mark.asyncio
@@ -203,14 +213,4 @@ async def test_process_article():
 
 
 if __name__ == '__main__':
-    TEST_ARTICLES = (
-        'https://inosmi.ru/20221222/zemlya-259086442.html',
-        'https://inosmi.ru/20221222/yandeks-259084346.html',
-        'https://inosmi.ru/20221221/rasizm-259040011.html',
-        'https://inosmi.ru/20221221/kanada-259046280.html',
-        'https://inosmi.ru/20221221/oligarkhi-259041447.ht',
-        'https://anyio.readthedocs.io/en/latest/tasks.html'
-    )
-    morph = pymorphy2.MorphAnalyzer()
-    charged_words = get_charged_words()
-    asyncio.run(main(morph, TEST_ARTICLES, charged_words))
+    asyncio.run(main())
